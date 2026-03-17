@@ -1,0 +1,193 @@
+/*
+ * @Author: DI JUNKUN
+ * @Date: 2023-12-14
+ * Copyright (c) 2023 by DI JUNKUN, All Rights Reserved.
+ */
+
+#ifndef _DEVICE_CONTROLLER_H_
+#define _DEVICE_CONTROLLER_H_
+
+#include <stdio.h>
+
+#include <nlohmann/json.hpp>
+#include <string>
+
+#include "display_info.h"
+using json = nlohmann::json;
+
+namespace crossdesk {
+
+typedef enum {
+  mouse = 0,
+  keyboard,
+  audio_capture,
+  host_infomation,
+  display_id,
+} ControlType;
+typedef enum {
+  move = 0,
+  left_down,
+  left_up,
+  right_down,
+  right_up,
+  middle_down,
+  middle_up,
+  wheel_vertical,
+  wheel_horizontal
+} MouseFlag;
+typedef enum { key_down = 0, key_up } KeyFlag;
+typedef struct {
+  float x;
+  float y;
+  int s;
+  MouseFlag flag;
+} Mouse;
+
+typedef struct {
+  size_t key_value;
+  KeyFlag flag;
+} Key;
+
+typedef struct {
+  char host_name[64];
+  size_t host_name_size;
+  char** display_list;
+  size_t display_num;
+  int* left;
+  int* top;
+  int* right;
+  int* bottom;
+} HostInfo;
+
+struct RemoteAction {
+  ControlType type;
+  union {
+    Mouse m;
+    Key k;
+    HostInfo i;
+    bool a;
+    int d;
+  };
+
+  // parse
+  std::string to_json() const { return ToJson(*this); }
+
+  bool from_json(const std::string& json_str) {
+    RemoteAction temp;
+    if (!FromJson(json_str, temp)) return false;
+    *this = temp;
+    return true;
+  }
+
+  static std::string ToJson(const RemoteAction& a) {
+    json j;
+    j["type"] = a.type;
+    switch (a.type) {
+      case ControlType::mouse:
+        j["mouse"] = {
+            {"x", a.m.x}, {"y", a.m.y}, {"s", a.m.s}, {"flag", a.m.flag}};
+        break;
+      case ControlType::keyboard:
+        j["keyboard"] = {{"key_value", a.k.key_value}, {"flag", a.k.flag}};
+        break;
+      case ControlType::audio_capture:
+        j["audio_capture"] = a.a;
+        break;
+      case ControlType::display_id:
+        j["display_id"] = a.d;
+        break;
+      case ControlType::host_infomation: {
+        json displays = json::array();
+        for (size_t idx = 0; idx < a.i.display_num; idx++) {
+          displays.push_back(
+              {{"name", a.i.display_list ? a.i.display_list[idx] : ""},
+               {"left", a.i.left ? a.i.left[idx] : 0},
+               {"top", a.i.top ? a.i.top[idx] : 0},
+               {"right", a.i.right ? a.i.right[idx] : 0},
+               {"bottom", a.i.bottom ? a.i.bottom[idx] : 0}});
+        }
+
+        j["host_info"] = {{"host_name", a.i.host_name},
+                          {"display_num", a.i.display_num},
+                          {"displays", displays}};
+        break;
+      }
+    }
+    return j.dump();
+  }
+
+  static bool FromJson(const std::string& json_str, RemoteAction& out) {
+    try {
+      json j = json::parse(json_str);
+      out.type = (ControlType)j.at("type").get<int>();
+      switch (out.type) {
+        case ControlType::mouse:
+          out.m.x = j.at("mouse").at("x").get<float>();
+          out.m.y = j.at("mouse").at("y").get<float>();
+          out.m.s = j.at("mouse").at("s").get<int>();
+          out.m.flag = (MouseFlag)j.at("mouse").at("flag").get<int>();
+          break;
+        case ControlType::keyboard:
+          out.k.key_value = j.at("keyboard").at("key_value").get<size_t>();
+          out.k.flag = (KeyFlag)j.at("keyboard").at("flag").get<int>();
+          break;
+        case ControlType::audio_capture:
+          out.a = j.at("audio_capture").get<bool>();
+          break;
+        case ControlType::display_id:
+          out.d = j.at("display_id").get<int>();
+          break;
+        case ControlType::host_infomation: {
+          std::string host_name =
+              j.at("host_info").at("host_name").get<std::string>();
+          strncpy(out.i.host_name, host_name.c_str(), sizeof(out.i.host_name));
+          out.i.host_name[sizeof(out.i.host_name) - 1] = '\0';
+          out.i.host_name_size = host_name.size();
+
+          out.i.display_num = j.at("host_info").at("display_num").get<size_t>();
+          auto displays = j.at("host_info").at("displays");
+
+          out.i.display_list =
+              (char**)malloc(out.i.display_num * sizeof(char*));
+          out.i.left = (int*)malloc(out.i.display_num * sizeof(int));
+          out.i.top = (int*)malloc(out.i.display_num * sizeof(int));
+          out.i.right = (int*)malloc(out.i.display_num * sizeof(int));
+          out.i.bottom = (int*)malloc(out.i.display_num * sizeof(int));
+
+          for (size_t idx = 0; idx < out.i.display_num; idx++) {
+            std::string name = displays[idx].at("name").get<std::string>();
+            out.i.display_list[idx] = (char*)malloc(name.size() + 1);
+            strcpy(out.i.display_list[idx], name.c_str());
+            out.i.left[idx] = displays[idx].at("left").get<int>();
+            out.i.top[idx] = displays[idx].at("top").get<int>();
+            out.i.right[idx] = displays[idx].at("right").get<int>();
+            out.i.bottom[idx] = displays[idx].at("bottom").get<int>();
+          }
+          break;
+        }
+      }
+      return true;
+    } catch (const std::exception& e) {
+      printf("Failed to parse RemoteAction JSON: %s\n", e.what());
+      return false;
+    }
+  }
+};
+
+// int key_code, bool is_down
+typedef void (*OnKeyAction)(int, bool, void*);
+
+class DeviceController {
+ public:
+  virtual ~DeviceController() {}
+
+ public:
+  // virtual int Init(int screen_width, int screen_height);
+  // virtual int Destroy();
+  // virtual int SendMouseCommand(RemoteAction remote_action);
+
+  // virtual int Hook();
+  // virtual int Unhook();
+};
+}  // namespace crossdesk
+#endif

@@ -1,0 +1,21 @@
+/*
+ * @Author: DI JUNKUN
+ * @Date: 2025-11-11
+ * Copyright (c) 2025 by DI JUNKUN, All Rights Reserved.
+ */
+
+#ifndef _VERSION_CHECKER_H_
+#define _VERSION_CHECKER_H_
+
+#include <nlohmann/json.hpp>
+#include <string>
+
+namespace crossdesk {
+
+nlohmann::json CheckUpdate();
+
+bool IsNewerVersion(const std::string& current, const std::string& latest);
+
+}  // namespace crossdesk
+
+#endif

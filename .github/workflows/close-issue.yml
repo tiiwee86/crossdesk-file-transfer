@@ -1,0 +1,80 @@
+name: Close Inactive Issues
+
+on:
+  schedule:
+    # run every day at midnight
+    - cron: "0 0 * * *"
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: read
+
+jobs:
+  close_inactive_issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check inactive issues and close them
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+
+            const now = new Date().getTime();
+            const inactivePeriod = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+            for (const issue of issues) {
+              // skip pull requests (they are also returned by listForRepo)
+              if (issue.pull_request) continue;
+
+              // skip labeled issues
+              if (issue.labels.length > 0) {
+                console.log(`Skipping issue #${issue.number} (Has labels).`);
+                continue;
+              }
+
+              // fetch comments for this issue
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                per_page: 100,
+              });
+
+              // determine the "last activity" time
+              let lastActivityTime;
+              if (comments.length > 0) {
+                const lastComment = comments[comments.length - 1];
+                lastActivityTime = new Date(lastComment.updated_at).getTime();
+              } else {
+                lastActivityTime = new Date(issue.created_at).getTime();
+              }
+
+              // check inactivity
+              if (now - lastActivityTime > inactivePeriod) {
+                console.log(`Closing inactive issue: #${issue.number} (No recent replies for 7 days)`);
+
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: "This issue has been automatically closed due to inactivity for 7 days."
+                });
+
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  state: 'closed',
+                });
+              } else {
+                console.log(`Skipping issue #${issue.number} (Active within 7 days).`);
+              }
+            }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

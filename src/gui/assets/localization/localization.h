@@ -1,0 +1,244 @@
+/*
+ * @Author: DI JUNKUN
+ * @Date: 2024-05-29
+ * Copyright (c) 2024 by DI JUNKUN, All Rights Reserved.
+ */
+#ifndef _LOCALIZATION_H_
+#define _LOCALIZATION_H_
+
+#include <string>
+#include <vector>
+
+#if _WIN32
+#include <Windows.h>
+#endif
+
+namespace crossdesk {
+
+namespace localization {
+
+static std::vector<std::string> local_desktop = {
+    reinterpret_cast<const char*>(u8"本桌面"), "Local Desktop"};
+static std::vector<std::string> local_id = {
+    reinterpret_cast<const char*>(u8"本机ID"), "Local ID"};
+static std::vector<std::string> local_id_copied_to_clipboard = {
+    reinterpret_cast<const char*>(u8"已复制到剪贴板"), "Copied to clipboard"};
+static std::vector<std::string> password = {
+    reinterpret_cast<const char*>(u8"密码"), "Password"};
+static std::vector<std::string> max_password_len = {
+    reinterpret_cast<const char*>(u8"最大6个字符"), "Max 6 chars"};
+
+static std::vector<std::string> remote_desktop = {
+    reinterpret_cast<const char*>(u8"控制远程桌面"), "Control Remote Desktop"};
+static std::vector<std::string> remote_id = {
+    reinterpret_cast<const char*>(u8"对端ID"), "Remote ID"};
+static std::vector<std::string> connect = {
+    reinterpret_cast<const char*>(u8"连接"), "Connect"};
+static std::vector<std::string> recent_connections = {
+    reinterpret_cast<const char*>(u8"近期连接"), "Recent Connections"};
+static std::vector<std::string> disconnect = {
+    reinterpret_cast<const char*>(u8"断开连接"), "Disconnect"};
+static std::vector<std::string> fullscreen = {
+    reinterpret_cast<const char*>(u8"全屏"), " Fullscreen"};
+static std::vector<std::string> show_net_traffic_stats = {
+    reinterpret_cast<const char*>(u8"显示流量统计"), "Show Net Traffic Stats"};
+static std::vector<std::string> hide_net_traffic_stats = {
+    reinterpret_cast<const char*>(u8"隐藏流量统计"), "Hide Net Traffic Stats"};
+static std::vector<std::string> video = {
+    reinterpret_cast<const char*>(u8"视频"), "Video"};
+static std::vector<std::string> audio = {
+    reinterpret_cast<const char*>(u8"音频"), "Audio"};
+static std::vector<std::string> data = {reinterpret_cast<const char*>(u8"数据"),
+                                        "Data"};
+static std::vector<std::string> total = {
+    reinterpret_cast<const char*>(u8"总计"), "Total"};
+static std::vector<std::string> in = {reinterpret_cast<const char*>(u8"输入"),
+                                      "In"};
+static std::vector<std::string> out = {reinterpret_cast<const char*>(u8"输出"),
+                                       "Out"};
+static std::vector<std::string> loss_rate = {
+    reinterpret_cast<const char*>(u8"丢包率"), "Loss Rate"};
+static std::vector<std::string> exit_fullscreen = {
+    reinterpret_cast<const char*>(u8"退出全屏"), "Exit fullscreen"};
+static std::vector<std::string> control_mouse = {
+    reinterpret_cast<const char*>(u8"控制"), "Control"};
+static std::vector<std::string> release_mouse = {
+    reinterpret_cast<const char*>(u8"释放"), "Release"};
+static std::vector<std::string> audio_capture = {
+    reinterpret_cast<const char*>(u8"声音"), "Audio"};
+static std::vector<std::string> mute = {
+    reinterpret_cast<const char*>(u8" 静音"), " Mute"};
+static std::vector<std::string> settings = {
+    reinterpret_cast<const char*>(u8"设置"), "Settings"};
+static std::vector<std::string> language = {
+    reinterpret_cast<const char*>(u8"语言:"), "Language:"};
+static std::vector<std::string> language_zh = {
+    reinterpret_cast<const char*>(u8"中文"), "Chinese"};
+static std::vector<std::string> language_en = {
+    reinterpret_cast<const char*>(u8"英文"), "English"};
+static std::vector<std::string> video_quality = {
+    reinterpret_cast<const char*>(u8"视频质量:"), "Video Quality:"};
+static std::vector<std::string> video_frame_rate = {
+    reinterpret_cast<const char*>(u8"画面采集帧率:"),
+    "Video Capture Frame Rate:"};
+static std::vector<std::string> video_quality_high = {
+    reinterpret_cast<const char*>(u8"高"), "High"};
+static std::vector<std::string> video_quality_medium = {
+    reinterpret_cast<const char*>(u8"中"), "Medium"};
+static std::vector<std::string> video_quality_low = {
+    reinterpret_cast<const char*>(u8"低"), "Low"};
+static std::vector<std::string> video_encode_format = {
+    reinterpret_cast<const char*>(u8"视频编码格式:"), "Video Encode Format:"};
+static std::vector<std::string> av1 = {reinterpret_cast<const char*>(u8"AV1"),
+                                       "AV1"};
+static std::vector<std::string> h264 = {
+    reinterpret_cast<const char*>(u8"H.264"), "H.264"};
+static std::vector<std::string> enable_hardware_video_codec = {
+    reinterpret_cast<const char*>(u8"启用硬件编解码器:"),
+    "Enable Hardware Video Codec:"};
+static std::vector<std::string> enable_turn = {
+    reinterpret_cast<const char*>(u8"启用中继服务:"), "Enable TURN Service:"};
+static std::vector<std::string> enable_srtp = {
+    reinterpret_cast<const char*>(u8"启用SRTP:"), "Enable SRTP:"};
+static std::vector<std::string> self_hosted_server_config = {
+    reinterpret_cast<const char*>(u8"自托管服务器配置"),
+    "Self-Hosted Server Config"};
+static std::vector<std::string> self_hosted_server_settings = {
+    reinterpret_cast<const char*>(u8"自托管服务器设置"),
+    "Self-Hosted Server Settings"};
+static std::vector<std::string> self_hosted_server_address = {
+    reinterpret_cast<const char*>(u8"服务器地址:"), "Server Address:"};
+static std::vector<std::string> self_hosted_server_port = {
+    reinterpret_cast<const char*>(u8"信令服务端口:"), "Signal Service Port:"};
+static std::vector<std::string> self_hosted_server_coturn_server_port = {
+    reinterpret_cast<const char*>(u8"中继服务端口:"), "Relay Service Port:"};
+static std::vector<std::string> select_a_file = {
+    reinterpret_cast<const char*>(u8"请选择文件"), "Please select a file"};
+static std::vector<std::string> ok = {reinterpret_cast<const char*>(u8"确认"),
+                                      "OK"};
+static std::vector<std::string> cancel = {
+    reinterpret_cast<const char*>(u8"取消"), "Cancel"};
+
+static std::vector<std::string> new_password = {
+    reinterpret_cast<const char*>(u8"请输入六位密码:"),
+    "Please input a six-char password:"};
+
+static std::vector<std::string> input_password = {
+    reinterpret_cast<const char*>(u8"请输入密码:"), "Please input password:"};
+static std::vector<std::string> validate_password = {
+    reinterpret_cast<const char*>(u8"验证密码中..."), "Validate password ..."};
+static std::vector<std::string> reinput_password = {
+    reinterpret_cast<const char*>(u8"请重新输入密码"),
+    "Please input password again"};
+
+static std::vector<std::string> remember_password = {
+    reinterpret_cast<const char*>(u8"记住密码"), "Remember password"};
+
+static std::vector<std::string> signal_connected = {
+    reinterpret_cast<const char*>(u8"已连接服务器"), "Connected"};
+static std::vector<std::string> signal_disconnected = {
+    reinterpret_cast<const char*>(u8"未连接服务器"), "Disconnected"};
+
+static std::vector<std::string> p2p_connected = {
+    reinterpret_cast<const char*>(u8"对等连接已建立"), "P2P Connected"};
+static std::vector<std::string> p2p_disconnected = {
+    reinterpret_cast<const char*>(u8"对等连接已断开"), "P2P Disconnected"};
+static std::vector<std::string> p2p_connecting = {
+    reinterpret_cast<const char*>(u8"正在建立对等连接..."),
+    "P2P Connecting ..."};
+static std::vector<std::string> p2p_failed = {
+    reinterpret_cast<const char*>(u8"对等连接失败"), "P2P Failed"};
+static std::vector<std::string> p2p_closed = {
+    reinterpret_cast<const char*>(u8"对等连接已关闭"), "P2P closed"};
+
+static std::vector<std::string> no_such_id = {
+    reinterpret_cast<const char*>(u8"无此ID"), "No such ID"};
+
+static std::vector<std::string> about = {
+    reinterpret_cast<const char*>(u8"关于"), "About"};
+static std::vector<std::string> notification = {
+    reinterpret_cast<const char*>(u8"通知"), "Notification"};
+static std::vector<std::string> new_version_available = {
+    reinterpret_cast<const char*>(u8"新版本可用"), "New Version Available"};
+static std::vector<std::string> version = {
+    reinterpret_cast<const char*>(u8"版本"), "Version"};
+static std::vector<std::string> release_date = {
+    reinterpret_cast<const char*>(u8"发布日期: "), "Release Date: "};
+static std::vector<std::string> access_website = {
+    reinterpret_cast<const char*>(u8"访问官网: "), "Access Website: "};
+static std::vector<std::string> update = {
+    reinterpret_cast<const char*>(u8"更新"), "Update"};
+
+static std::vector<std::string> confirm_delete_connection = {
+    reinterpret_cast<const char*>(u8"确认删除此连接"),
+    "Confirm to delete this connection"};
+
+static std::vector<std::string> enable_autostart = {
+    reinterpret_cast<const char*>(u8"开机自启:"), "Auto Start:"};
+static std::vector<std::string> enable_daemon = {
+    reinterpret_cast<const char*>(u8"启用守护进程:"), "Enable Daemon:"};
+static std::vector<std::string> takes_effect_after_restart = {
+    reinterpret_cast<const char*>(u8"重启后生效"),
+    "Takes effect after restart"};
+static std::vector<std::string> select_file = {
+    reinterpret_cast<const char*>(u8"选择文件"), "Select File"};
+static std::vector<std::string> file_transfer_progress = {
+    reinterpret_cast<const char*>(u8"文件传输进度"), "File Transfer Progress"};
+static std::vector<std::string> queued = {
+    reinterpret_cast<const char*>(u8"队列中"), "Queued"};
+static std::vector<std::string> sending = {
+    reinterpret_cast<const char*>(u8"正在传输"), "Sending"};
+static std::vector<std::string> completed = {
+    reinterpret_cast<const char*>(u8"已完成"), "Completed"};
+static std::vector<std::string> failed = {
+    reinterpret_cast<const char*>(u8"失败"), "Failed"};
+static std::vector<std::string> controller = {
+    reinterpret_cast<const char*>(u8"控制端:"), "Controller:"};
+static std::vector<std::string> file_transfer = {
+    reinterpret_cast<const char*>(u8"文件传输:"), "File Transfer:"};
+static std::vector<std::string> connection_status = {
+    reinterpret_cast<const char*>(u8"连接状态:"), "Connection Status:"};
+static std::vector<std::string> file_transfer_save_path = {
+    reinterpret_cast<const char*>(u8"文件接收保存路径:"),
+    "File Transfer Save Path:"};
+static std::vector<std::string> browse = {
+    reinterpret_cast<const char*>(u8"浏览"), "Browse"};
+static std::vector<std::string> default_desktop = {
+    reinterpret_cast<const char*>(u8"桌面"), "Desktop"};
+static std::vector<std::string> minimize_to_tray = {
+    reinterpret_cast<const char*>(u8"退出时最小化到系统托盘:"),
+    "Minimize to system tray when exit:"};
+static std::vector<std::string> resolution = {
+    reinterpret_cast<const char*>(u8"分辨率"), "Res"};
+static std::vector<std::string> connection_mode = {
+    reinterpret_cast<const char*>(u8"连接模式"), "Mode"};
+static std::vector<std::string> connection_mode_direct = {
+    reinterpret_cast<const char*>(u8"直连"), "Direct"};
+static std::vector<std::string> connection_mode_relay = {
+    reinterpret_cast<const char*>(u8"中继"), "Relay"};
+static std::vector<std::string> online = {
+    reinterpret_cast<const char*>(u8"在线"), "Online"};
+static std::vector<std::string> offline = {
+    reinterpret_cast<const char*>(u8"离线"), "Offline"};
+static std::vector<std::string> device_offline = {
+    reinterpret_cast<const char*>(u8"设备离线"), "Device Offline"};
+
+#if _WIN32
+static std::vector<LPCWSTR> exit_program = {L"退出", L"Exit"};
+#endif
+#ifdef __APPLE__
+static std::vector<std::string> request_permissions = {
+    reinterpret_cast<const char*>(u8"权限请求"), "Request Permissions"};
+static std::vector<std::string> screen_recording_permission = {
+    reinterpret_cast<const char*>(u8"屏幕录制权限"),
+    "Screen Recording Permission"};
+static std::vector<std::string> accessibility_permission = {
+    reinterpret_cast<const char*>(u8"辅助功能权限"),
+    "Accessibility Permission"};
+static std::vector<std::string> permission_required_message = {
+    reinterpret_cast<const char*>(u8"该应用需要授权以下权限:"),
+    "The application requires the following permissions:"};
+#endif
+}  // namespace localization
+}  // namespace crossdesk
+#endif

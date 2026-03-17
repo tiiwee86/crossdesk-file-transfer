@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+
+  <!-- 应用程序标识 -->
+  <assemblyIdentity
+      version="1.0.0.0"
+      processorArchitecture="*"
+      name="CrossDesk"
+      type="win32" />
+
+  <!-- 描述信息 -->
+  <description>CrossDesk Application</description>
+
+  <!-- 权限：要求管理员运行 -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <!-- DPI 感知设置：支持高分屏 -->
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <!-- Windows Vista/7 风格 DPI 感知 -->
+      <dpiAware>true/pm</dpiAware>
+      <!-- Windows 10/11 高级 DPI 感知 -->
+      <dpiAwareness>PerMonitorV2</dpiAwareness>
+    </windowsSettings>
+  </application>
+
+  <!-- Windows 兼容性声明 -->
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- 支持 Windows 10 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+      <!-- 支持 Windows 11（向下兼容 Win10 GUID） -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+    </application>
+  </compatibility>
+
+</assembly>

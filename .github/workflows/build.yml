@@ -1,0 +1,60 @@
+name: CrossDesk Build
+
+# 触发条件：推送到 main 分支或手动触发
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# 编译矩阵：同时编译 macOS/Windows/Linux
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      # 1. 拉取代码到云端服务器
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive  # 拉取子模块（项目依赖）
+
+      # 2. 安装编译依赖（通用）
+      - name: Install common dependencies
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo apt update && sudo apt install -y build-essential cmake pkg-config libssl-dev libx11-dev libxrandr-dev libxtst-dev libxcb1-dev libxcb-xfixes0-dev
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew install xmake cmake pkg-config openssl
+          elif [[ "$RUNNER_OS" == "Windows" ]]; then
+            choco install xmake cmake --yes
+          fi
+        shell: bash
+
+      # 3. 编译项目（适配不同系统）
+      - name: Build project
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            bash scripts/linux/pkg_amd64.sh
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            bash scripts/macosx/pkg_arm64.sh  # M芯片，Intel 换 pkg_x64.sh
+          elif [[ "$RUNNER_OS" == "Windows" ]]; then
+            powershell -ExecutionPolicy Bypass -File scripts/windows/build.ps1
+          fi
+        shell: bash
+
+      # 4. 上传编译产物（可下载）
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: crossdesk-${{ matrix.os }}
+          path: |
+            build/
+            output/
+            *.zip
+            *.dmg
+            *.exe
+            *.deb

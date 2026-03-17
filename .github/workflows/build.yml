@@ -2,10 +2,8 @@ name: Build and Release
 
 on:
   push:
-    branches:
-      - "**"
-    tags:
-      - "*"
+    branches: ["**"]
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -14,316 +12,280 @@ permissions:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+# ──────────────────────────────────────────────
+# Job 1: 统一计算版本号
+# ──────────────────────────────────────────────
 jobs:
-  # Linux amd64
-  build-linux-amd64:
-    name: Build on Ubuntu 22.04 amd64
-    runs-on: ubuntu-22.04
-    container:
-      image: crossdesk/ubuntu20.04:latest
-      options: --user root
+  version:
+    name: Compute version
+    runs-on: ubuntu-latest
+    outputs:
+      legal:    ${{ steps.v.outputs.legal }}
+      ver_only: ${{ steps.v.outputs.ver_only }}
+      date_iso: ${{ steps.v.outputs.date_iso }}
+
     steps:
-      - name: Extract version number
-        id: version
-        run: |
-          VERSION="${GITHUB_REF##*/}"
-          VERSION_NUM="${VERSION#v}"
-          echo "VERSION_NUM=${VERSION_NUM}" >> $GITHUB_ENV
-
-      - name: Set legal Debian version
+      - id: v
         shell: bash
-        id: set_deb_version
         run: |
-          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-          BUILD_DATE=$(TZ=Asia/Shanghai date +%Y%m%d)
-          if [[ ! "${VERSION_NUM}" =~ ^[0-9] ]]; then
-            LEGAL_VERSION="v0.0.0-${VERSION_NUM}-${BUILD_DATE}-${SHORT_SHA}"
+          RAW="${GITHUB_REF##*/}"
+          NUM="${RAW#v}"
+          SHA="${GITHUB_SHA:0:7}"
+          DATE=$(TZ=Asia/Shanghai date +%Y%m%d)
+          DATE_ISO=$(TZ=Asia/Shanghai date +%Y-%m-%d)
+
+          if [[ ! "$NUM" =~ ^[0-9] ]]; then
+            LEGAL="v0.0.0-${NUM//\//-}-${DATE}-${SHA}"
           else
-            LEGAL_VERSION="v${VERSION_NUM}-${BUILD_DATE}-${SHORT_SHA}"
+            LEGAL="v${NUM}-${DATE}-${SHA}"
           fi
-          echo "LEGAL_VERSION=${LEGAL_VERSION}" >> $GITHUB_ENV
-          echo "BUILD_DATE=${BUILD_DATE}" >> $GITHUB_ENV
 
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
+          echo "legal=${LEGAL}"       >> "$GITHUB_OUTPUT"
+          echo "ver_only=${NUM}"      >> "$GITHUB_OUTPUT"
+          echo "date_iso=${DATE_ISO}" >> "$GITHUB_OUTPUT"
 
-      - name: Build CrossDesk
-        env:
-          CUDA_PATH: /usr/local/cuda
-          XMAKE_GLOBALDIR: /data
-        run: |
-          ls -la $XMAKE_GLOBALDIR
-          xmake f --CROSSDESK_VERSION=${LEGAL_VERSION} --USE_CUDA=true --root -y
-          xmake b -vy --root crossdesk
+  # ──────────────────────────────────────────────
+  # Job 2: Linux (amd64 / arm64)
+  # ──────────────────────────────────────────────
+  build-linux:
+    name: Linux / ${{ matrix.arch }}
+    needs: version
+    runs-on: ${{ matrix.runner }}
 
-      - name: Decode and save certificate
-        shell: bash
-        run: |
-          mkdir -p certs
-          echo "${{ secrets.CROSSDESK_CERT_BASE64 }}" | base64 --decode > certs/crossdesk.cn_root.crt
-
-      - name: Package
-        run: |
-          chmod +x ./scripts/linux/pkg_amd64.sh
-          ./scripts/linux/pkg_amd64.sh ${LEGAL_VERSION}
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: crossdesk-linux-amd64-${{ env.LEGAL_VERSION }}
-          path: ${{ github.workspace }}/crossdesk-linux-amd64-${{ env.LEGAL_VERSION }}.deb
-
-  # Linux arm64
-  build-linux-arm64:
-    name: Build on Ubuntu 22.04 arm64
-    runs-on: ubuntu-22.04-arm
     strategy:
+      fail-fast: false
       matrix:
         include:
+          - arch: amd64
+            runner: ubuntu-22.04
+            image: crossdesk/ubuntu20.04:latest
+            pkg_script: ./scripts/linux/pkg_amd64.sh
+
           - arch: arm64
+            runner: ubuntu-22.04-arm
             image: crossdesk/ubuntu20.04-arm64v8:latest
-            package_script: ./scripts/linux/pkg_arm64.sh
+            pkg_script: ./scripts/linux/pkg_arm64.sh
+
     container:
       image: ${{ matrix.image }}
       options: --user root
+
     steps:
-      - name: Extract version number
-        id: version
-        run: |
-          VERSION="${GITHUB_REF##*/}"
-          VERSION_NUM="${VERSION#v}"
-          echo "VERSION_NUM=${VERSION_NUM}" >> $GITHUB_ENV
-
-      - name: Set legal Debian version
-        shell: bash
-        id: set_deb_version
-        run: |
-          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-          BUILD_DATE=$(TZ=Asia/Shanghai date +%Y%m%d)
-          if [[ ! "${VERSION_NUM}" =~ ^[0-9] ]]; then
-            LEGAL_VERSION="v0.0.0-${VERSION_NUM}-${BUILD_DATE}-${SHORT_SHA}"
-          else
-            LEGAL_VERSION="v${VERSION_NUM}-${BUILD_DATE}-${SHORT_SHA}"
-          fi
-          echo "LEGAL_VERSION=${LEGAL_VERSION}" >> $GITHUB_ENV
-          echo "BUILD_DATE=${BUILD_DATE}" >> $GITHUB_ENV
-
-      - name: Checkout code
+      - name: Checkout (with submodules)
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Build CrossDesk
+      - name: Build
         env:
           CUDA_PATH: /usr/local/cuda
           XMAKE_GLOBALDIR: /data
+          VER: ${{ needs.version.outputs.legal }}
         run: |
-          xmake f --CROSSDESK_VERSION=${LEGAL_VERSION} --USE_CUDA=true --root -y
+          xmake f --CROSSDESK_VERSION="$VER" --USE_CUDA=true --root -y
           xmake b -vy --root crossdesk
 
-      - name: Decode and save certificate
-        shell: bash
+      - name: Package (.deb)
+        env:
+          VER: ${{ needs.version.outputs.legal }}
         run: |
-          mkdir -p certs
-          echo "${{ secrets.CROSSDESK_CERT_BASE64 }}" | base64 --decode > certs/crossdesk.cn_root.crt
-
-      - name: Package
-        run: |
-          chmod +x ${{ matrix.package_script }}
-          ${{ matrix.package_script }} ${LEGAL_VERSION}
+          chmod +x "${{ matrix.pkg_script }}"
+          "${{ matrix.pkg_script }}" "$VER"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: crossdesk-linux-${{ matrix.arch }}-${{ env.LEGAL_VERSION }}
-          path: ${{ github.workspace }}/crossdesk-linux-${{ matrix.arch }}-${{ env.LEGAL_VERSION }}.deb
+          name: crossdesk-linux-${{ matrix.arch }}-${{ needs.version.outputs.legal }}
+          path: crossdesk-linux-${{ matrix.arch }}-${{ needs.version.outputs.legal }}.deb
+          if-no-files-found: error
 
-  # macOS
+  # ──────────────────────────────────────────────
+  # Job 3: macOS (x64 Intel / arm64 Apple Silicon)
+  # ──────────────────────────────────────────────
   build-macos:
-    name: Build on macOS
+    name: macOS / ${{ matrix.arch }}
+    needs: version
     runs-on: ${{ matrix.runner }}
+
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: x64
             runner: macos-15-intel
-            cache-key: intel
-            out-dir: ./build/macosx/x86_64/release/crossdesk
-            package_script: ./scripts/macosx/pkg_x64.sh
+            cache_key: intel
+            pkg_script: ./scripts/macosx/pkg_x64.sh
+
           - arch: arm64
             runner: macos-14
-            cache-key: arm
-            out-dir: ./build/macosx/arm64/release/crossdesk
-            package_script: ./scripts/macosx/pkg_arm64.sh
+            cache_key: arm
+            pkg_script: ./scripts/macosx/pkg_arm64.sh
 
     steps:
-      - name: Extract version number
-        id: version
-        run: |
-          VERSION="${GITHUB_REF##*/}"
-          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-          BUILD_DATE=$(TZ=Asia/Shanghai date +%Y%m%d)
-          VERSION_NUM="v${VERSION#v}-${BUILD_DATE}-${SHORT_SHA}"
-          echo "VERSION_NUM=${VERSION_NUM}" >> $GITHUB_ENV
-          echo "VERSION_NUM=${VERSION_NUM}"
-          echo "BUILD_DATE=${BUILD_DATE}" >> $GITHUB_ENV
-
-      - name: Cache xmake dependencies
+      - name: Restore xmake package cache
         uses: actions/cache@v4
         with:
           path: ~/.xmake/packages
-          key: ${{ runner.os }}-xmake-deps-${{ matrix.cache-key }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-xmake-deps-${{ matrix.cache-key }}-
+          key: macos-xmake-${{ matrix.cache_key }}-${{ hashFiles('**/xmake.lua') }}
+          restore-keys: macos-xmake-${{ matrix.cache_key }}-
 
       - name: Install xmake
         run: brew install xmake
 
-      - name: Checkout code
+      - name: Checkout (with submodules)
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: Initialize submodules
-        run: git submodule update --init --recursive
-
-      - name: Build CrossDesk
+      - name: Build
+        env:
+          VER: ${{ needs.version.outputs.legal }}
         run: |
-          xmake f --CROSSDESK_VERSION=${VERSION_NUM} --USE_CUDA=true -y
+          xmake f --CROSSDESK_VERSION="$VER" --USE_CUDA=false -y
           xmake b -vy crossdesk
 
-      - name: Decode and save certificate
-        shell: bash
+      - name: Package (.pkg)
+        env:
+          VER: ${{ needs.version.outputs.legal }}
         run: |
-          mkdir -p certs
-          echo "${{ secrets.CROSSDESK_CERT_BASE64 }}" | base64 --decode > certs/crossdesk.cn_root.crt
-
-      - name: Package CrossDesk app
-        run: |
-          chmod +x ${{ matrix.package_script }}
-          ${{ matrix.package_script }} ${VERSION_NUM}
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: crossdesk-macos-${{ matrix.arch }}-${{ env.VERSION_NUM }}
-          path: crossdesk-macos-${{ matrix.arch }}-${{ env.VERSION_NUM }}.pkg
-
-      - name: Move files to release dir
-        run: |
-          mkdir -p release
-          cp crossdesk-macos-${{ matrix.arch }}-${{ env.VERSION_NUM }}.pkg release/
-
-  # Windows
-  build-windows-x64:
-    name: Build on Windows x64
-    runs-on: windows-2022
-    env:
-      XMAKE_GLOBALDIR: D:\xmake_global
-    steps:
-      - name: Extract version number
-        shell: pwsh
-        run: |
-          $ref = $env:GITHUB_REF
-          $version = $ref -replace '^refs/(tags|heads)/', ''
-          $version = $version -replace '^v', ''
-          $version = $version -replace '/', '-'
-          $SHORT_SHA = $env:GITHUB_SHA.Substring(0,7)
-          $BUILD_DATE = ([System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), "China Standard Time")).ToString("yyyyMMdd")
-          echo "VERSION_NUM=v$version-$BUILD_DATE-$SHORT_SHA" >> $env:GITHUB_ENV
-          echo "BUILD_DATE=$BUILD_DATE" >> $env:GITHUB_ENV
-
-      - name: Cache xmake dependencies
-        uses: actions/cache@v4
-        with:
-          path: D:\xmake_global\.xmake\packages
-          key: ${{ runner.os }}-xmake-deps-intel-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-xmake-deps-intel-
-
-      - name: Install xmake
-        run: |
-          Invoke-Expression (Invoke-Webrequest 'https://raw.githubusercontent.com/tboox/xmake/master/scripts/get.ps1' -UseBasicParsing).Content
-          echo "C:\Users\runneradmin\xmake" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          xmake create cuda
-          Set-Location cuda
-          xmake g --theme=plain
-          $cudaPath = ""
-          $packagesPath = "D:\xmake_global\.xmake\packages"
-
-          if (Test-Path $packagesPath) {
-              Write-Host "Packages directory exists: $packagesPath"
-              try {
-                  $info = xmake require --info "cuda 12.6.3" 2>$null
-                  if ($null -ne $info -and $info -ne "") {
-                      $cudaPath = (($info | Select-String installdir).ToString() -replace '.*installdir:\s*','').Trim()
-                  }
-              } catch {}
-          } else {
-              Write-Host "Packages directory not found: $packagesPath"
-              Write-Host "Installing CUDA package..."
-              xmake require -vy "cuda 12.6.3"
-              $info = xmake require --info "cuda 12.6.3"
-              $cudaPath = (($info | Select-String installdir).ToString() -replace '.*installdir:\s*','').Trim()
-          }
-
-          echo "CUDA_PATH=$cudaPath" >> $env:GITHUB_ENV
-          Write-Host "Resolved CUDA_PATH = $cudaPath"
-          Pop-Location
-
-      - name: Download INetC plugin
-        shell: powershell
-        run: |
-          $url = "https://github.com/DigitalMediaServer/NSIS-INetC-plugin/releases/download/v1.0.5.7/InetC.zip"
-          $out = "$env:RUNNER_TEMP\InetC.zip"
-          Invoke-WebRequest -Uri $url -OutFile $out
-          Expand-Archive $out -DestinationPath "$env:RUNNER_TEMP\InetC" -Force
-
-          $source = "$env:RUNNER_TEMP\InetC\x86-unicode\INetC.dll"
-          $target = "C:\Program Files (x86)\NSIS\Plugins\x86-unicode\INetC.dll"
-
-          Write-Host "Copying $source to $target"
-          Copy-Item $source $target -Force
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Initialize submodules
-        run: git submodule update --init --recursive
-
-      - name: Copy nsProcess plugin to NSIS folder
-        run: |
-          $nsisPluginDir = "C:\Program Files (x86)\NSIS\Plugins\x86-unicode"
-          copy "${{ github.workspace }}\scripts\windows\nsProcess.dll" $nsisPluginDir
-
-      - name: Build CrossDesk
-        run: |
-          xmake f --CROSSDESK_VERSION=${{ env.VERSION_NUM }} --USE_CUDA=true -y
-          xmake b -vy crossdesk
-
-      - name: Decode and save certificate
-        shell: powershell
-        run: |
-          New-Item -ItemType Directory -Force -Path certs
-          [System.IO.File]::WriteAllBytes('certs\crossdesk.cn_root.crt', [Convert]::FromBase64String('${{ secrets.CROSSDESK_CERT_BASE64 }}'))
-
-      - name: Package
-        shell: pwsh
-        run: |
-          cd "${{ github.workspace }}\scripts\windows"
-          makensis /DVERSION=$env:VERSION_NUM nsis_script.nsi
+          chmod +x "${{ matrix.pkg_script }}"
+          "${{ matrix.pkg_script }}" "$VER"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: crossdesk-win-x64-${{ env.VERSION_NUM }}
-          path: ${{ github.workspace }}/scripts/windows/crossdesk-win-x64-${{ env.VERSION_NUM }}.exe
+          name: crossdesk-macos-${{ matrix.arch }}-${{ needs.version.outputs.legal }}
+          path: crossdesk-macos-${{ matrix.arch }}-${{ needs.version.outputs.legal }}.pkg
+          if-no-files-found: error
 
+  # ──────────────────────────────────────────────
+  # Job 4: Windows x64
+  # ──────────────────────────────────────────────
+  build-windows:
+    name: Windows / x64
+    needs: version
+    runs-on: windows-2022
+    env:
+      XMAKE_GLOBALDIR: D:\xmake_global
+      VER: ${{ needs.version.outputs.legal }}
+
+    steps:
+      - name: Restore xmake package cache
+        uses: actions/cache@v4
+        with:
+          path: D:\xmake_global\.xmake\packages
+          key: windows-xmake-intel-${{ hashFiles('**/xmake.lua') }}
+          restore-keys: windows-xmake-intel-
+
+      - name: Install xmake
+        shell: pwsh
+        run: |
+          Invoke-Expression (
+            Invoke-WebRequest 'https://raw.githubusercontent.com/tboox/xmake/master/scripts/get.ps1' -UseBasicParsing
+          ).Content
+          "C:\Users\runneradmin\xmake" | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Resolve or install CUDA
+        shell: pwsh
+        run: |
+          $pkgDir = "D:\xmake_global\.xmake\packages"
+          $cudaPath = ""
+
+          if (Test-Path $pkgDir) {
+            Push-Location $env:RUNNER_TEMP
+            xmake create _probe 2>$null | Out-Null
+            Set-Location _probe
+            xmake g --theme=plain 2>$null | Out-Null
+            try {
+              $info = xmake require --info "cuda 12.6.3" 2>$null
+              $line = ($info | Select-String 'installdir') | Select-Object -First 1
+              if ($line) {
+                $cudaPath = ($line.ToString() -replace '.*installdir:\s*','').Trim()
+              }
+            } catch {}
+            Pop-Location
+          }
+
+          if (-not $cudaPath -or -not (Test-Path $cudaPath)) {
+            Write-Host "CUDA not cached, installing..."
+            Push-Location $env:RUNNER_TEMP
+            xmake create _probe2 2>$null | Out-Null
+            Set-Location _probe2
+            xmake g --theme=plain 2>$null | Out-Null
+            xmake require -vy "cuda 12.6.3"
+            $info = xmake require --info "cuda 12.6.3"
+            $line = ($info | Select-String 'installdir') | Select-Object -First 1
+            $cudaPath = ($line.ToString() -replace '.*installdir:\s*','').Trim()
+            Pop-Location
+          }
+
+          Write-Host "CUDA_PATH = $cudaPath"
+          "CUDA_PATH=$cudaPath" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install NSIS INetC plugin
+        shell: pwsh
+        run: |
+          $nsisDir = "C:\Program Files (x86)\NSIS\Plugins\x86-unicode"
+          $zip = "$env:RUNNER_TEMP\InetC.zip"
+          Invoke-WebRequest `
+            "https://github.com/DigitalMediaServer/NSIS-INetC-plugin/releases/download/v1.0.5.7/InetC.zip" `
+            -OutFile $zip
+          Expand-Archive $zip -DestinationPath "$env:RUNNER_TEMP\InetC" -Force
+          Copy-Item "$env:RUNNER_TEMP\InetC\x86-unicode\INetC.dll" "$nsisDir\INetC.dll" -Force
+
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Copy nsProcess plugin to NSIS
+        shell: pwsh
+        run: |
+          Copy-Item "${{ github.workspace }}\scripts\windows\nsProcess.dll" `
+            "C:\Program Files (x86)\NSIS\Plugins\x86-unicode\nsProcess.dll" -Force
+
+      - name: Build
+        shell: pwsh
+        run: |
+          xmake f --CROSSDESK_VERSION="$env:VER" --USE_CUDA=true -y
+          xmake b -vy crossdesk
+
+      - name: Package installer (.exe)
+        shell: pwsh
+        working-directory: ${{ github.workspace }}\scripts\windows
+        run: makensis /DVERSION=$env:VER nsis_script.nsi
+
+      - name: Package portable (.zip)
+        shell: pwsh
+        run: |
+          $portDir = "${{ github.workspace }}\portable"
+          New-Item -ItemType Directory -Force -Path $portDir | Out-Null
+          Copy-Item "${{ github.workspace }}\build\windows\x64\release\crossdesk.exe" `
+            "$portDir\CrossDesk.exe"
+          Compress-Archive -Path "$portDir\*" `
+            -DestinationPath "${{ github.workspace }}\crossdesk-win-x64-portable-$env:VER.zip"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: crossdesk-win-x64-${{ needs.version.outputs.legal }}
+          path: ${{ github.workspace }}\scripts\windows\crossdesk-win-x64-${{ needs.version.outputs.legal }}.exe
+          if-no-files-found: error
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: crossdesk-win-x64-portable-${{ needs.version.outputs.legal }}
+          path: ${{ github.workspace }}\crossdesk-win-x64-portable-${{ needs.version.outputs.legal }}.zip
+          if-no-files-found: error
+
+  # ──────────────────────────────────────────────
+  # Job 5: 发布 Release（仅 tag 推送时触发）
+  # ──────────────────────────────────────────────
   release:
     name: Publish Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs:
-      [build-linux-amd64, build-linux-arm64, build-macos, build-windows-x64]
+    needs: [version, build-linux, build-macos, build-windows]
     runs-on: ubuntu-latest
 
     steps:
@@ -335,43 +297,28 @@ jobs:
         with:
           path: artifacts
 
-      - name: Extract version number
-        id: version
-        run: |
-          VERSION="${GITHUB_REF##*/}"
-          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-          BUILD_DATE=$(TZ=Asia/Shanghai date +%Y%m%d)
-          BUILD_DATE_ISO=$(TZ=Asia/Shanghai date +%Y-%m-%d)
-          VERSION_NUM="${VERSION#v}-${BUILD_DATE}-${SHORT_SHA}"
-          VERSION_WITH_V="v${VERSION_NUM}"
-          VERSION_ONLY="${VERSION#v}"
-          echo "VERSION_NUM=${VERSION_NUM}" >> $GITHUB_OUTPUT
-          echo "VERSION_WITH_V=${VERSION_WITH_V}" >> $GITHUB_OUTPUT
-          echo "VERSION_ONLY=${VERSION_ONLY}" >> $GITHUB_OUTPUT
-          echo "BUILD_DATE=${BUILD_DATE}" >> $GITHUB_OUTPUT
-          echo "BUILD_DATE_ISO=${BUILD_DATE_ISO}" >> $GITHUB_OUTPUT
-
-      - name: Rename artifacts
+      - name: Collect release files
+        env:
+          VER: ${{ needs.version.outputs.legal }}
         run: |
           mkdir -p release
-          cp artifacts/crossdesk-macos-x64-${{ steps.version.outputs.VERSION_WITH_V }}/* release/crossdesk-macos-x64-${{ steps.version.outputs.VERSION_WITH_V }}.pkg
-          cp artifacts/crossdesk-macos-arm64-${{ steps.version.outputs.VERSION_WITH_V }}/* release/crossdesk-macos-arm64-${{ steps.version.outputs.VERSION_WITH_V }}.pkg
-          cp artifacts/crossdesk-linux-amd64-${{ steps.version.outputs.VERSION_WITH_V }}/* release/crossdesk-linux-amd64-${{ steps.version.outputs.VERSION_WITH_V }}.deb
-          cp artifacts/crossdesk-linux-arm64-${{ steps.version.outputs.VERSION_WITH_V }}/* release/crossdesk-linux-arm64-${{ steps.version.outputs.VERSION_WITH_V }}.deb
-          cp artifacts/crossdesk-win-x64-${{ steps.version.outputs.VERSION_WITH_V }}/* release/crossdesk-win-x64-${{ steps.version.outputs.VERSION_WITH_V }}.exe
+          cp artifacts/crossdesk-macos-x64-${VER}/*             release/crossdesk-macos-x64-${VER}.pkg
+          cp artifacts/crossdesk-macos-arm64-${VER}/*           release/crossdesk-macos-arm64-${VER}.pkg
+          cp artifacts/crossdesk-linux-amd64-${VER}/*           release/crossdesk-linux-amd64-${VER}.deb
+          cp artifacts/crossdesk-linux-arm64-${VER}/*           release/crossdesk-linux-arm64-${VER}.deb
+          cp artifacts/crossdesk-win-x64-${VER}/*               release/crossdesk-win-x64-${VER}.exe
+          cp artifacts/crossdesk-win-x64-portable-${VER}/*      release/crossdesk-win-x64-portable-${VER}.zip
+          ls -lh release/
 
-      - name: List release files
-        run: ls -lh release/
-
-      - name: Upload to Versioned GitHub Release
+      - name: Upload to versioned GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.VERSION_WITH_V }}
-          name: Release ${{ steps.version.outputs.VERSION_WITH_V }}
+          tag_name: ${{ needs.version.outputs.legal }}
+          name: Release ${{ needs.version.outputs.legal }}
           draft: false
           prerelease: false
-          files: release/*
           generate_release_notes: false
+          files: release/*
           body: |
             Binary release only. Source code is not included.
 
@@ -382,7 +329,7 @@ jobs:
           git tag -f latest
           git push origin latest --force
 
-      - name: Upload to GitHub Release (latest)
+      - name: Upload to latest GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
@@ -403,39 +350,46 @@ jobs:
           remote_key: ${{ secrets.SERVER_KEY }}
 
       - name: Generate version.json
+        env:
+          VER: ${{ needs.version.outputs.legal }}
+          VER_ONLY: ${{ needs.version.outputs.ver_only }}
+          DATE_ISO: ${{ needs.version.outputs.date_iso }}
         run: |
           cat > version.json << EOF
           {
-            "version": "${{ steps.version.outputs.VERSION_ONLY }}",
-            "releaseDate": "${{ steps.version.outputs.BUILD_DATE_ISO }}",
+            "version": "${VER_ONLY}",
+            "releaseDate": "${DATE_ISO}",
             "releaseName": "",
             "releaseNotes": "",
-            "tagName": "${{ steps.version.outputs.VERSION_WITH_V }}",
+            "tagName": "${VER}",
             "downloads": {
               "windows-x64": {
-                "url": "https://downloads.crossdesk.cn/crossdesk-win-x64-${{ steps.version.outputs.VERSION_WITH_V }}.exe",
-                "filename": "crossdesk-win-x64-${{ steps.version.outputs.VERSION_WITH_V }}.exe"
+                "url": "https://downloads.crossdesk.cn/crossdesk-win-x64-${VER}.exe",
+                "filename": "crossdesk-win-x64-${VER}.exe"
+              },
+              "windows-x64-portable": {
+                "url": "https://downloads.crossdesk.cn/crossdesk-win-x64-portable-${VER}.zip",
+                "filename": "crossdesk-win-x64-portable-${VER}.zip"
               },
               "macos-x64": {
-                "url": "https://downloads.crossdesk.cn/crossdesk-macos-x64-${{ steps.version.outputs.VERSION_WITH_V }}.pkg",
-                "filename": "crossdesk-macos-x64-${{ steps.version.outputs.VERSION_WITH_V }}.pkg"
+                "url": "https://downloads.crossdesk.cn/crossdesk-macos-x64-${VER}.pkg",
+                "filename": "crossdesk-macos-x64-${VER}.pkg"
               },
               "macos-arm64": {
-                "url": "https://downloads.crossdesk.cn/crossdesk-macos-arm64-${{ steps.version.outputs.VERSION_WITH_V }}.pkg",
-                "filename": "crossdesk-macos-arm64-${{ steps.version.outputs.VERSION_WITH_V }}.pkg"
+                "url": "https://downloads.crossdesk.cn/crossdesk-macos-arm64-${VER}.pkg",
+                "filename": "crossdesk-macos-arm64-${VER}.pkg"
               },
               "linux-amd64": {
-                "url": "https://downloads.crossdesk.cn/crossdesk-linux-amd64-${{ steps.version.outputs.VERSION_WITH_V }}.deb",
-                "filename": "crossdesk-linux-amd64-${{ steps.version.outputs.VERSION_WITH_V }}.deb"
+                "url": "https://downloads.crossdesk.cn/crossdesk-linux-amd64-${VER}.deb",
+                "filename": "crossdesk-linux-amd64-${VER}.deb"
               },
               "linux-arm64": {
-                "url": "https://downloads.crossdesk.cn/crossdesk-linux-arm64-${{ steps.version.outputs.VERSION_WITH_V }}.deb",
-                "filename": "crossdesk-linux-arm64-${{ steps.version.outputs.VERSION_WITH_V }}.deb"
+                "url": "https://downloads.crossdesk.cn/crossdesk-linux-arm64-${VER}.deb",
+                "filename": "crossdesk-linux-arm64-${VER}.deb"
               }
             }
           }
           EOF
-          cat version.json
 
       - name: Upload version.json to server
         uses: burnett01/rsync-deployments@5.2
